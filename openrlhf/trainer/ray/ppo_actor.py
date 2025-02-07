@@ -149,6 +149,7 @@ class ActorPPOTrainer(PPOTrainer):
         return self.training_step_actor(experience)
 
     def _broadcast_to_vllm(self):
+        print("Broadcasting weights to vllm engines...")
         use_prefix_cache = getattr(self.strategy.args, "enable_prefix_caching", False)
         cache_reset_refs = []
         if use_prefix_cache and torch.distributed.get_rank() == 0:

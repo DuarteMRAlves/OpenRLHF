@@ -104,7 +104,8 @@ class Samples:
     packed_seq_lens: None or (B,), the length of each sample in the packed samples.
     response_length: (B,), the number of tokens in the response.
     total_length: (B,), the total number of tokens in the sequences.
-    prompts: the prompts used to generate responses
+    prompts_batch: the prompts used to generate responses, toghether with any other
+        information in the batch.
     """
 
     sequences: torch.Tensor
@@ -114,7 +115,7 @@ class Samples:
     packed_seq_lens: Optional[torch.Tensor]
     response_length: torch.Tensor
     total_length: torch.Tensor
-    prompts: list[str]
+    prompts_batch: list[dict]
 
 
 class NaiveExperienceMaker(ABC):
@@ -181,7 +182,7 @@ class NaiveExperienceMaker(ABC):
         return {k: v.to(device) for k, v in batch.items()}
 
     @torch.no_grad()
-    def make_experience_list(self, all_prompts: Union[str, List[str]], **generate_kwargs) -> List[Experience]:
+    def make_experience_list(self, prompts_batch: Union[dict, List[dict]], **generate_kwargs) -> List[Experience]:
         """
         Make a list of experience with the micro_rollout_batch_size.
 
@@ -190,8 +191,10 @@ class NaiveExperienceMaker(ABC):
         After that, we will calculate the advantages and returns for each experience.
         """
         args = self.strategy.args
+        if isinstance(prompts_batch, dict):
+            prompts_batch = [prompts_batch]
         # generate responses
-        samples_list = self.generate_samples(all_prompts, **generate_kwargs)
+        samples_list = self.generate_samples(prompts_batch, **generate_kwargs)
         torch.distributed.barrier()
 
         experiences = []
@@ -251,7 +254,7 @@ class NaiveExperienceMaker(ABC):
         return experiences
 
     @torch.no_grad()
-    def generate_samples(self, all_prompts: List[str], **generate_kwargs) -> List[Samples]:
+    def generate_samples(self, all_prompts: List[dict], **generate_kwargs) -> List[Samples]:
         """
         Generate samples and return in batches.
         """
@@ -262,7 +265,8 @@ class NaiveExperienceMaker(ABC):
         all_prompts = sum([[prompt] * args.n_samples_per_prompt for prompt in all_prompts], [])
         samples_list = []
         for i in range(0, len(all_prompts), args.micro_rollout_batch_size):
-            prompts = all_prompts[i : i + args.micro_rollout_batch_size]
+            micro_batch = all_prompts[i : i + args.micro_rollout_batch_size]
+            prompts = [prompt["prompt"] for prompt in micro_batch]
             inputs = self.tokenize_fn(prompts, self.prompt_max_len, device="cuda")
             sequences, attention_mask, action_mask = self.actor.generate(**inputs, **generate_kwargs)
             samples = Samples(
@@ -273,7 +277,7 @@ class NaiveExperienceMaker(ABC):
                 packed_seq_lens=None,
                 response_length=action_mask.float().sum(dim=-1),
                 total_length=attention_mask.float().sum(dim=-1),
-                prompts=prompts,
+                prompts_batch=micro_batch,
             )
             samples_list.append(samples)
         return samples_list
@@ -312,10 +316,11 @@ class NaiveExperienceMaker(ABC):
         if self.remote_rm_url is not None:
             # remote RM
             queries = self.tokenizer.batch_decode(sequences.cpu(), skip_special_tokens=False)
+            prompts = [prompt["prompt"] for prompt in samples.prompts_batch]
             if self.custom_reward_func:
-                r = self.custom_reward_func(queries, samples.prompts).to(device=action_log_probs.device)
+                r = self.custom_reward_func(queries, prompts).to(device=action_log_probs.device)
             else:
-                r = remote_rm_fn(self.remote_rm_url, queries=queries, prompts=samples.prompts).to(
+                r = remote_rm_fn(self.remote_rm_url, queries=queries, prompts=prompts).to(
                     device=action_log_probs.device
                 )
         else:
@@ -577,12 +582,13 @@ class RemoteExperienceMaker(NaiveExperienceMaker):
                     offset += length
                 queries = self.tokenizer.batch_decode(sequences_list, skip_special_tokens=False)
 
+            prompts = [prompt["prompt"] for prompt in samples.prompts_batch]
             if self.custom_reward_func:
-                r = self.custom_reward_func.remote(queries, samples.prompts)
+                r = self.custom_reward_func.remote(queries, prompts)
                 r_refs.append(r)
             else:
                 for rm in self.remote_rm_url:
-                    r = remote_rm_fn_ray.remote(rm, queries=queries, prompts=samples.prompts)
+                    r = remote_rm_fn_ray.remote(rm, queries=queries, prompts=prompts)
                     r_refs.append(r)
 
         # log probs
@@ -656,7 +662,7 @@ class RemoteExperienceMaker(NaiveExperienceMaker):
         self.actor.train()  # reset model state
         return experience
 
-    def _generate_vllm(self, all_prompts: List[str], **kwargs) -> List[Samples]:
+    def _generate_vllm(self, all_prompts: List[dict], **kwargs) -> List[Samples]:
         from vllm import SamplingParams
 
         # round-robin load balance
@@ -683,7 +689,8 @@ class RemoteExperienceMaker(NaiveExperienceMaker):
 
         # Expand prompt list based on the number of samples per prompt
         all_prompts = sum([[prompt] * args.n_samples_per_prompt for prompt in all_prompts], [])
-        all_prompt_token_ids = self.tokenize_fn(all_prompts, self.prompt_max_len, padding=False)["input_ids"]
+        input_prompts = [prompt["prompt"] for prompt in all_prompts]
+        all_prompt_token_ids = self.tokenize_fn(input_prompts, self.prompt_max_len, padding=False)["input_ids"]
 
         # Distribute requests to engines and collect responses to outputs
         all_output_refs = []
@@ -744,7 +751,7 @@ class RemoteExperienceMaker(NaiveExperienceMaker):
                         packed_seq_lens=None,
                         response_length=action_mask.float().sum(dim=-1),
                         total_length=attention_mask.float().sum(dim=-1),
-                        prompts=prompts,
+                        prompts_batch=prompts,
                     )
                 )
             else:
@@ -782,7 +789,7 @@ class RemoteExperienceMaker(NaiveExperienceMaker):
                         packed_seq_lens=packed_seq_lens,
                         response_length=response_length,
                         total_length=total_length,
-                        prompts=prompts,
+                        prompts_batch=prompts,
                     )
                 )
         return samples_list

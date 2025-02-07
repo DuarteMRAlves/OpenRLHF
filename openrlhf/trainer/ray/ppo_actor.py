@@ -307,6 +307,8 @@ class ActorModelRayActor(BasePPORole):
     def prepare_datasets(self):
         strategy = self.strategy
         args = self.strategy.args
+        if args is None:
+            raise ValueError("args is None")
 
         # prepare datasets
         prompts_data = blending_datasets(
@@ -323,7 +325,12 @@ class ActorModelRayActor(BasePPORole):
             prompts_data, self.tokenizer, strategy, input_template=args.input_template
         )
         self.prompts_dataloader = strategy.setup_dataloader(
-            self.prompts_dataset, args.rollout_batch_size // strategy.world_size, True, True
+            self.prompts_dataset,
+            batch_size=args.rollout_batch_size // strategy.world_size,
+            pin_memory=True,
+            shuffle=True,
+            # Keep as list of dictionaries
+            collate_fn=lambda batch: batch,
         )
 
         if args.pretrain_data:

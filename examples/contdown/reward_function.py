@@ -1,9 +1,7 @@
 import torch
 
-def reward_func(queries, prompts):
+def reward_func(queries, batch):
     # queries is prompts + responses
-    print(queries)
-    print(prompts)
-    answers = queries[len(prompts):]
-    print(answers)
+    print("Reward function called")
+    print(batch)
     return torch.randn(len(queries))

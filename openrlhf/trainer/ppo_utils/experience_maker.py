@@ -316,10 +316,10 @@ class NaiveExperienceMaker(ABC):
         if self.remote_rm_url is not None:
             # remote RM
             queries = self.tokenizer.batch_decode(sequences.cpu(), skip_special_tokens=False)
-            prompts = [prompt["prompt"] for prompt in samples.prompts_batch]
             if self.custom_reward_func:
-                r = self.custom_reward_func(queries, prompts).to(device=action_log_probs.device)
+                r = self.custom_reward_func(queries, samples.prompts_batch).to(device=action_log_probs.device)
             else:
+                prompts = [prompt["prompt"] for prompt in samples.prompts_batch]
                 r = remote_rm_fn(self.remote_rm_url, queries=queries, prompts=prompts).to(
                     device=action_log_probs.device
                 )
@@ -597,11 +597,11 @@ class RemoteExperienceMaker(NaiveExperienceMaker):
                     offset += length
                 queries = self.tokenizer.batch_decode(sequences_list, skip_special_tokens=False)
 
-            prompts = [prompt["prompt"] for prompt in samples.prompts_batch]
             if self.custom_reward_func:
-                r = self.custom_reward_func.remote(queries, prompts)
+                r = self.custom_reward_func.remote(queries, samples.prompts_batch)
                 r_refs.append(r)
             else:
+                prompts = [prompt["prompt"] for prompt in samples.prompts_batch]
                 for rm in self.remote_rm_url:
                     r = remote_rm_fn_ray.remote(rm, queries=queries, prompts=prompts)
                     r_refs.append(r)

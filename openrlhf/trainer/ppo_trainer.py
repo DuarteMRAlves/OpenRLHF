@@ -88,6 +88,7 @@ class PPOTrainer(ABC):
         reward_fn: Callable[[List[torch.Tensor]], torch.Tensor] = None,
         save_hf_ckpt: bool = False,
         disable_ds_ckpt: bool = False,
+        log_every: int = 50,
         **generate_kwargs,
     ) -> None:
         assert (
@@ -154,6 +155,8 @@ class PPOTrainer(ABC):
         self.replay_buffer = NaiveReplayBuffer(
             micro_train_batch_size, buffer_limit, buffer_cpu_offload, packing_samples
         )
+
+        self.log_every = log_every
 
         # wandb/tensorboard setting
         self._wandb = None
@@ -275,12 +278,7 @@ class PPOTrainer(ABC):
         status_list = []
         status_mean = {}
         for epoch in range(self.max_epochs):
-            pbar = tqdm(
-                dataloader,
-                desc=f"Train epoch [{epoch + 1}/{self.max_epochs}]",
-                disable=not self.strategy.is_rank_0(),
-            )
-            for experience in pbar:
+            for step, experience in enumerate(dataloader, start=1):
                 experience.to_device(device)
                 status = self.training_step(experience, global_steps)
 
@@ -313,7 +311,13 @@ class PPOTrainer(ABC):
                     short_status["ptx"] = status["ptx_loss"]
 
                 status_list.append(status)
-                pbar.set_postfix(short_status)
+                if step % self.log_every == 0:
+                    msg = ", ".join(f"{k}={v}" for k, v in short_status.items())
+                    print(
+                        f"PPO Train [Epoch {epoch + 1}/{self.max_epochs}]"
+                        f"[Step {step}/{len(dataloader)}] {msg}",
+                        flush=True
+                    )
 
         if status_list:
             status_mean = status_list[0]

@@ -12,10 +12,10 @@ module load cuda/12.4.1
 
 source /mnt/data-artemis/duarte/openrlhf-venv/bin/activate
 
+mkdir countdown-test/
+
 # launch the master node of ray in container
 ray start --head --node-ip-address 0.0.0.0 --num-gpus ${SLURM_GPUS_PER_TASK}
-
-echo "Ray started"
 
 ray job submit --address="http://127.0.0.1:8265" \
     -- python3 -u -m openrlhf.cli.train_ppo_ray \
@@ -35,11 +35,11 @@ ray job submit --address="http://127.0.0.1:8265" \
     --eval_steps -1 \
     --micro_train_batch_size 1 \
     --train_batch_size 4 \
-    --micro_rollout_batch_size 1 \
-    --rollout_batch_size 4 \
+    --micro_rollout_batch_size 2 \
+    --rollout_batch_size 1024 \
     --max_epochs 1 \
-    --prompt_max_len 2048 \
-    --generate_max_len 2048 \
+    --prompt_max_len 1024 \
+    --generate_max_len 1024 \
     --zero_stage 0 \
     --bf16 \
     --actor_learning_rate 5e-7 \
@@ -48,9 +48,10 @@ ray job submit --address="http://127.0.0.1:8265" \
     --prompt_data /mnt/scratch-artemis/duarte/reasoning/countdown_dataset \
     --input_key messages \
     --apply_chat_template \
-    --max_samples 10000 \
+    --max_samples 100000000 \
     --normalize_reward \
     --flash_attn \
     --remote_rm_url /mnt/home/duarte/OpenRLHF/examples/contdown/reward_function.py \
     --advantage_estimator reinforce \
-    --packing_samples
+    --packing_samples \
+    --use_tensorboard countdown-test

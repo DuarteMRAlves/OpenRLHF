@@ -198,12 +198,15 @@ class NaiveExperienceMaker(ABC):
         torch.distributed.barrier()
 
         experiences = []
-        for samples in tqdm(
-            samples_list,
-            desc="make_experience",
-            disable=not self.strategy.is_rank_0(),
-        ):
+        print("Making experiences from samples", flush=True)
+        # for samples in tqdm(
+        #     samples_list,
+        #     desc="make_experience",
+        #     disable=not self.strategy.is_rank_0(),
+        # ):
+        for samples in samples_list:
             experiences.append(self.make_experience(samples).to_device("cpu"))
+        print("Finished making experiences", flush=True)
 
         experiences, rewards = self.process_experiences(experiences)
 

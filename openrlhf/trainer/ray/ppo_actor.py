@@ -291,6 +291,7 @@ class ActorModelRayActor(BasePPORole):
             lora_dropout=strategy.args.lora_dropout,
             ds_config=strategy.get_ds_train_config(is_actor=True),
             packing_samples=strategy.args.packing_samples,
+            apply_liger_kernel=strategy.args.liger_kernel,
         )
         strategy.print(actor)
 

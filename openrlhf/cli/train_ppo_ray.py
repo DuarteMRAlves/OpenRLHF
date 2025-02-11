@@ -341,6 +341,8 @@ if __name__ == "__main__":
     parser.add_argument("--value_head_prefix", type=str, default="score")
     parser.add_argument("--ref_reward_offload", action="store_true", default=False)
 
+    parser.add_argument("--liger_kernel", action="store_true", default=False)
+
     # Custom dataset
     parser.add_argument("--prompt_data", type=str, default=None, help="HF dataset name or path")
     parser.add_argument(

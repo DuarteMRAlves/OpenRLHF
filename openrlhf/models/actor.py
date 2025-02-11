@@ -11,6 +11,12 @@ from transformers.integrations.deepspeed import HfDeepSpeedConfig
 from .ring_attn_utils import convert_ring_attn_params
 from .utils import log_probs_from_logits, reset_position_ids
 
+try:
+    from liger_kernel.transformers.monkey_patch import _apply_liger_kernel_to_instance
+    _LIGER_AVAILABLE = True
+except ImportError:
+    _LIGER_AVAILABLE = False
+
 
 class Actor(nn.Module):
     """
@@ -45,6 +51,7 @@ class Actor(nn.Module):
         ds_config=None,
         device_map=None,
         packing_samples=False,
+        apply_liger_kernel=False,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -117,6 +124,11 @@ class Actor(nn.Module):
             self.packing_samples = packing_samples
         else:
             self.model = pretrain_or_model
+
+        if apply_liger_kernel:
+            if not _LIGER_AVAILABLE:
+                raise ValueError("Liger kernel is not available. Please install it via `pip install liger-kernel`.")
+            _apply_liger_kernel_to_instance(self.model)
 
     @torch.no_grad()
     def generate(self, input_ids: torch.Tensor, **kwargs) -> Union[

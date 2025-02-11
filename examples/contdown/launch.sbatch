@@ -12,8 +12,6 @@ module load cuda/12.4.1
 
 source /mnt/data-artemis/duarte/openrlhf-venv/bin/activate
 
-mkdir countdown-test/
-
 # launch the master node of ray in container
 ray start --head --node-ip-address 0.0.0.0 --num-gpus ${SLURM_GPUS_PER_TASK}
 
@@ -53,4 +51,5 @@ ray job submit --address="http://127.0.0.1:8265" \
     --flash_attn \
     --remote_rm_url /mnt/home/duarte/OpenRLHF/examples/contdown/reward_function.py \
     --advantage_estimator reinforce \
-    --packing_samples
+    --packing_samples \
+    --liger_kernel

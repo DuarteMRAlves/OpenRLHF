@@ -7,11 +7,10 @@ from typing import List, Optional, Tuple, Union
 import ray
 import torch
 import torch.nn as nn
-from tqdm import tqdm
 
 from openrlhf.models.actor import Actor
 from openrlhf.models.utils import compute_approx_kl, compute_reward, masked_mean, unpacking_samples
-from openrlhf.utils.logging_utils import init_logger
+from openrlhf.utils.logging_utils import init_logger, make_progress_logger
 from openrlhf.utils.remote_rm_utils import remote_rm_fn, remote_rm_fn_ray
 
 logger = init_logger(__name__)
@@ -176,7 +175,7 @@ class NaiveExperienceMaker(ABC):
             return_tensors="pt",
             add_special_tokens=False,
             max_length=max_length,
-            padding=True,
+            padding="max_length",
             truncation=True,
         )
         return {k: v.to(device) for k, v in batch.items()}
@@ -198,15 +197,12 @@ class NaiveExperienceMaker(ABC):
         torch.distributed.barrier()
 
         experiences = []
-        print("Making experiences from samples", flush=True)
-        # for samples in tqdm(
-        #     samples_list,
-        #     desc="make_experience",
-        #     disable=not self.strategy.is_rank_0(),
-        # ):
-        for samples in samples_list:
+        
+        log_progress = make_progress_logger(len(samples_list), 10, "Making experiences")
+        log_progress(0, force=True)
+        for step, samples in enumerate(samples_list, start=1):
             experiences.append(self.make_experience(samples).to_device("cpu"))
-        print("Finished making experiences", flush=True)
+            log_progress(step)
 
         experiences, rewards = self.process_experiences(experiences)
 

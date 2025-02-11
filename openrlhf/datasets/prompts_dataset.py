@@ -1,6 +1,8 @@
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from openrlhf.utils.logging_utils import make_progress_logger
+
 
 def preprocess_data(data, input_template=None, input_key="input", apply_chat_template=None) -> str:
     if apply_chat_template:
@@ -45,10 +47,13 @@ class PromptDataset(Dataset):
             apply_chat_template = self.tokenizer.apply_chat_template
 
         self.prompts = []
-        for data in tqdm(dataset, desc="Preprocessing data", disable=not self.strategy.is_rank_0()):
+        log_progress = make_progress_logger(len(dataset), 10, desc="Preprocessing data")
+        log_progress(0, force=True)
+        for step, data in enumerate(dataset, start=1):
             prompt = preprocess_data(data, input_template, input_key, apply_chat_template)
             data["prompt"] = prompt
             self.prompts.append(data)
+            log_progress(step)
 
     def __len__(self):
         length = len(self.prompts)

@@ -53,5 +53,4 @@ ray job submit --address="http://127.0.0.1:8265" \
     --flash_attn \
     --remote_rm_url /mnt/home/duarte/OpenRLHF/examples/contdown/reward_function.py \
     --advantage_estimator reinforce \
-    --packing_samples \
-    --use_tensorboard countdown-test
+    --packing_samples

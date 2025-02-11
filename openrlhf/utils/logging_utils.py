@@ -2,6 +2,7 @@
 # https://github.com/skypilot-org/skypilot/blob/86dc0f6283a335e4aa37b3c10716f90999f48ab6/sky/sky_logging.py
 """Logging configuration for vLLM."""
 import logging
+import math
 import sys
 
 _FORMAT = "%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s"
@@ -54,3 +55,21 @@ def init_logger(name: str):
     logger.addHandler(_default_handler)
     logger.propagate = False
     return logger
+
+
+def make_progress_logger(
+    total_steps: int,
+    progress_perc: int,
+    desc: str = "Progress",
+):
+    log_steps = [
+        math.ceil(total_steps * p / 100) 
+        for p in range(progress_perc, 100 + progress_perc, progress_perc)
+    ]
+
+    def _log_fn(step, force=False):
+        if step in log_steps or step == total_steps or force:
+            perc = (step / total_steps) * 100
+            print(f"{desc}: {step}/{total_steps} ({perc:.0f}%)", flush=True)
+
+    return _log_fn

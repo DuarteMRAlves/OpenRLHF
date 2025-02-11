@@ -510,3 +510,6 @@ class ActorModelRayActor(BasePPORole):
             self.tokenizer,
             args.save_path,
         )
+
+    def __repr__(self):
+        return f"Actor(rank={os.environ.get('RANK', 0)})"

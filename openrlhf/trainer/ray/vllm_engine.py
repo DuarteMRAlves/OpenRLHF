@@ -97,6 +97,9 @@ class LLMRayActor:
         Return the responses for the actor with the given rank
         """
         return self.responses.pop(actor_rank)
+    
+    def __repr__(self):
+        return "VLLM"
 
 
 def create_vllm_engines(

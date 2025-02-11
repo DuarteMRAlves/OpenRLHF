@@ -238,7 +238,7 @@ class PPOTrainer(ABC):
                     if i == 0:
                         output = self.tokenizer.batch_decode(
                             experience.sequences[0].unsqueeze(0), skip_special_tokens=True
-                        )
+                        )[0]
                         self.strategy.print(output)
                     self.replay_buffer.append(experience)
 
@@ -313,7 +313,8 @@ class PPOTrainer(ABC):
 
                 status_list.append(status)
                 if step % self.log_every == 0:
-                    msg = ", ".join(f"{k}={v}" for k, v in short_status.items())
+                    keys_to_print = ["rm", "glen", "kl", "act_lr"]
+                    msg = ", ".join(f"{k}={v}" for k, v in short_status.items() if k in keys_to_print)
                     print(
                         f"PPO Train [Epoch {epoch + 1}/{self.max_epochs}]"
                         f"[Step {step}/{len(dataloader)}] {msg}",

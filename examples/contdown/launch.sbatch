@@ -3,7 +3,7 @@
 #SBATCH --job-name=count-down-test
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
-#SBATCH --gpus-per-task=2
+#SBATCH --gpus-per-task=3
 #SBATCH --partition=a6000
 #SBATCH --qos=gpu-debug
 
@@ -18,11 +18,11 @@ ray start --head --node-ip-address 0.0.0.0 --num-gpus ${SLURM_GPUS_PER_TASK}
 ray job submit --address="http://127.0.0.1:8265" \
     -- python3 -u -m openrlhf.cli.train_ppo_ray \
     --ref_num_nodes 1 \
-    --ref_num_gpus_per_node 1 \
+    --ref_num_gpus_per_node 2 \
     --critic_num_nodes 1 \
     --critic_num_gpus_per_node 1 \
     --actor_num_nodes 1 \
-    --actor_num_gpus_per_node 1 \
+    --actor_num_gpus_per_node 2 \
     --vllm_num_engines 1 \
     --vllm_tensor_parallel_size 1 \
     --colocate_actor_ref \
@@ -31,14 +31,14 @@ ray job submit --address="http://127.0.0.1:8265" \
     --save_steps 100 \
     --logging_steps 1 \
     --eval_steps -1 \
-    --micro_train_batch_size 1 \
-    --train_batch_size 4 \
+    --micro_train_batch_size 2 \
+    --train_batch_size 128 \
     --micro_rollout_batch_size 2 \
     --rollout_batch_size 1024 \
     --max_epochs 1 \
     --prompt_max_len 1024 \
     --generate_max_len 1024 \
-    --zero_stage 0 \
+    --zero_stage 1 \
     --bf16 \
     --actor_learning_rate 5e-7 \
     --critic_learning_rate 9e-6 \

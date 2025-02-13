@@ -5,7 +5,7 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --gpus-per-task=3
 #SBATCH --partition=a6000
-#SBATCH --qos=gpu-debug
+#SBATCH --qos=gpu-medium
 
 module load python/3.12.5
 module load cuda/12.4.1
@@ -14,6 +14,10 @@ source /mnt/data-artemis/duarte/openrlhf-venv/bin/activate
 
 # launch the master node of ray in container
 ray start --head --node-ip-address 0.0.0.0 --num-gpus ${SLURM_GPUS_PER_TASK}
+
+run_dir=/mnt/scratch-artemis/duarte/reasoning/runs/test-countdown
+ckpt_dir=${run_dir}/checkpoints
+tb_dir=${run_dir}/tensorboard
 
 ray job submit --address="http://127.0.0.1:8265" \
     -- python3 -u -m openrlhf.cli.train_ppo_ray \
@@ -27,7 +31,7 @@ ray job submit --address="http://127.0.0.1:8265" \
     --vllm_tensor_parallel_size 1 \
     --colocate_actor_ref \
     --pretrain Qwen/Qwen2.5-1.5B-Instruct \
-    --save_path /mnt/scratch-artemis/duarte/reasoning/runs/test-countdown \
+    --save_path ${run_dir} \
     --save_steps 100 \
     --logging_steps 1 \
     --eval_steps -1 \
@@ -52,4 +56,7 @@ ray job submit --address="http://127.0.0.1:8265" \
     --remote_rm_url /mnt/home/duarte/OpenRLHF/examples/contdown/reward_function.py \
     --advantage_estimator reinforce \
     --packing_samples \
-    --liger_kernel
+    --liger_kernel \
+    --use_tensorboard ${tb_dir} \
+    --ckpt_path ${ckpt_dir} \
+    --load_checkpoint

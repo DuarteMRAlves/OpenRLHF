@@ -13,7 +13,7 @@ from tqdm import tqdm
 from openrlhf.models import Actor, GPTLMLoss, PolicyLoss, ValueLoss
 from openrlhf.models.utils import masked_mean
 from openrlhf.utils.distributed_sampler import DistributedSampler
-
+from openrlhf.utils.logging_utils import make_progress_logger
 from .ppo_utils import AdaptiveKLController, Experience, FixedKLController, NaiveExperienceMaker, NaiveReplayBuffer
 
 
@@ -225,13 +225,14 @@ class PPOTrainer(ABC):
                 self.prompts_dataloader.sampler.set_epoch(
                     episode, consumed_samples=0 if episode > start_episode else consumed_samples
                 )
-            pbar = tqdm(
-                range(self.prompts_dataloader.__len__()),
+            log_progress = make_progress_logger(
+                len(self.prompts_dataloader),
                 desc=f"Episode [{episode + 1}/{args.num_episodes}]",
-                disable=not self.strategy.is_rank_0(),
+                log_time=True,
             )
+            log_progress(0)
 
-            for rand_prompts in self.prompts_dataloader:
+            for episode_step, rand_prompts in enumerate(self.prompts_dataloader, start=1):
                 for i, experience in enumerate(
                     self.experience_maker.make_experience_list(rand_prompts, **self.generate_kwargs)
                 ):
@@ -248,14 +249,20 @@ class PPOTrainer(ABC):
 
                 if "kl" in status:
                     self.kl_ctl.update(status["kl"], args.rollout_batch_size * args.n_samples_per_prompt)
-                pbar.set_postfix(status)
 
                 # logs/checkpoints
                 client_states = {"consumed_samples": steps * args.rollout_batch_size}
-                self.save_logs_and_checkpoints(args, steps, pbar, status, client_states)
+                self.save_logs_and_checkpoints(args, steps, status, client_states)
 
-                pbar.update()
+                log_progress(episode_step, msg=f"reward: {status['reward']:.4f}")
+
                 steps = steps + 1
+
+            # save last checkpoint
+            client_states = {"consumed_samples": steps * args.rollout_batch_size}
+            self.save_logs_and_checkpoints(
+                args, steps, status, client_states, force_save=True
+            )
 
         if self._wandb is not None and self.strategy.is_rank_0():
             self._wandb.finish()
@@ -277,8 +284,14 @@ class PPOTrainer(ABC):
 
         status_list = []
         status_mean = {}
-        for epoch in range(self.max_epochs):
-            for step, experience in enumerate(dataloader, start=1):
+        step = 1
+        total_steps = len(dataloader) * self.max_epochs
+        log_progress = make_progress_logger(
+            total_steps, log_every_percent=10, desc=f"Episode Train",
+        )
+        log_progress(0, force=True)
+        for _ in range(self.max_epochs):
+            for experience in dataloader:
                 experience.to_device(device)
                 status = self.training_step(experience, global_steps)
 
@@ -289,36 +302,9 @@ class PPOTrainer(ABC):
                     status = self.strategy.all_reduce(status)
                     status["kl"] /= status["response_length"]
 
-                short_status = {}
-
-                if "policy_loss" in status:
-                    short_status = {
-                        "pg": status["policy_loss"],
-                        "rm": status["reward"],
-                        "ret": status["return"],
-                        "glen": status["response_length"],
-                        "tlen": status["total_length"],
-                        "kl": status["kl"],
-                        "act_lr": status["actor_lr"],
-                    }
-
-                if "critic_loss" in status:
-                    short_status["cri"] = status["critic_loss"]
-                    short_status["vals"] = status["values"]
-                    short_status["cri_lr"] = status["critic_lr"]
-
-                if "ptx_loss" in status:
-                    short_status["ptx"] = status["ptx_loss"]
-
                 status_list.append(status)
-                if step % self.log_every == 0:
-                    keys_to_print = ["rm", "glen", "kl", "act_lr"]
-                    msg = ", ".join(f"{k}={v}" for k, v in short_status.items() if k in keys_to_print)
-                    print(
-                        f"PPO Train [Epoch {epoch + 1}/{self.max_epochs}]"
-                        f"[Step {step}/{len(dataloader)}] {msg}",
-                        flush=True
-                    )
+                log_progress(step)
+                step += 1
 
         if status_list:
             status_mean = status_list[0]
@@ -477,7 +463,9 @@ class PPOTrainer(ABC):
         }
         return status
 
-    def save_logs_and_checkpoints(self, args, global_step, step_bar, logs_dict={}, client_states={}):
+    def save_logs_and_checkpoints(
+        self, args, global_step, logs_dict={}, client_states={}, force_save=False
+    ):
         if global_step % args.logging_steps == 0:
             # wandb
             if self._wandb is not None and self.strategy.is_rank_0():
@@ -505,7 +493,7 @@ class PPOTrainer(ABC):
             pass
         # save ckpt
         # TODO: save best model on dev, use loss/perplexity/others on whole dev dataset as metric
-        if global_step % args.save_steps == 0:
+        if global_step % args.save_steps == 0 or force_save:
             tag = f"global_step{global_step}"
             self._save_checkpoint(args, tag, client_states)
 

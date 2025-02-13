@@ -47,7 +47,9 @@ class PromptDataset(Dataset):
             apply_chat_template = self.tokenizer.apply_chat_template
 
         self.prompts = []
-        log_progress = make_progress_logger(len(dataset), 10, desc="Preprocessing data")
+        log_progress = make_progress_logger(
+            len(dataset), log_every_percent=10, desc="Preprocessing data",
+        )
         log_progress(0, force=True)
         for step, data in enumerate(dataset, start=1):
             prompt = preprocess_data(data, input_template, input_key, apply_chat_template)

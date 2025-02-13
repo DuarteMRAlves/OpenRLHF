@@ -4,6 +4,9 @@
 import logging
 import math
 import sys
+import time
+
+from typing import Optional
 
 _FORMAT = "%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s"
 _DATE_FORMAT = "%m-%d %H:%M:%S"
@@ -59,17 +62,101 @@ def init_logger(name: str):
 
 def make_progress_logger(
     total_steps: int,
-    progress_perc: int,
+    *,
+    log_every_percent: Optional[int] = None,
     desc: str = "Progress",
+    log_time: bool = False,
 ):
-    log_steps = [
-        math.ceil(total_steps * p / 100) 
-        for p in range(progress_perc, 100 + progress_perc, progress_perc)
-    ]
+    if log_every_percent is not None:
+        log_steps = [
+            math.ceil(total_steps * p / 100) 
+            for p in range(log_every_percent, 100 + log_every_percent, log_every_percent)
+        ]
+    
+    if log_time:
+        start_time = time.time()
 
-    def _log_fn(step, force=False):
-        if step in log_steps or step == total_steps or force:
+    def _print_step(step, force: bool = False):
+        return log_every_percent is None or step in log_steps or force
+
+    def _log_fn(step, msg: str = None, force=False):
+        if _print_step(step, force):
             perc = (step / total_steps) * 100
-            print(f"{desc}: {step}/{total_steps} ({perc:.0f}%)", flush=True)
+            full_msg = f"{desc}: {step}/{total_steps} ({perc:.0f}%)"
+            if log_time:
+                full_msg += f" {get_time_info(start_time, total_steps, step)}"
+            if msg is not None:
+                full_msg += f" - {msg}"
+            print(full_msg, flush=True)
 
     return _log_fn
+
+def get_time_info(start_time, total_steps, step):
+    if step == 0:
+        return "[00:00<NA]"
+    elapsed = time.time() - start_time
+
+    elapsed_hh, elapsed_mm, elapsed_ss = seconds_to_hms(elapsed)
+
+    # Calculate elapsed time.
+    elapsed = time.time() - start_time
+
+    # Calculate average time per step.
+    avg_time_per_step = elapsed / step
+
+    # Determine the number of steps remaining.
+    steps_left = total_steps - step
+
+    # Estimate the remaining time in seconds.
+    remaining_seconds = avg_time_per_step * steps_left
+
+    # Convert remaining seconds into hours, minutes, and seconds.
+    left_hh, left_mm, left_ss = seconds_to_hms(remaining_seconds)
+
+    if left_hh == 0 and elapsed_hh == 0:
+        return f"[{elapsed_mm:02d}:{elapsed_ss:02d}<{left_mm:02d}:{left_ss:02d}]"
+
+    return f"[{elapsed_hh:02d}:{elapsed_mm:02d}:{elapsed_ss:02d}<{left_hh:02d}:{left_mm:02d}:{left_ss:02d}]"
+
+
+def seconds_to_hms(seconds):
+    """
+    Convert seconds to hours, minutes, and seconds.
+    """
+    seconds = int(round(seconds))
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    return hours, minutes, seconds
+
+def estimate_time_left_hms(start_time, total_steps, current_step):
+    """
+    Estimate the remaining time to complete the process, returning hours, minutes, and seconds.
+    
+    Parameters:
+    - start_time: The timestamp when the process started (at step 0).
+    - total_steps: The total number of steps in the process.
+    - current_step: The current step number (should be > 0 for a valid estimate).
+
+    Returns:
+    - A tuple (hours, minutes, seconds) representing the estimated time remaining,
+      or None if not enough steps have been completed.
+    """
+    # Cannot compute an estimate if no steps have been completed.
+    if current_step <= 0:
+        return None
+
+    # Calculate elapsed time.
+    elapsed = time.time() - start_time
+
+    # Calculate average time per step.
+    avg_time_per_step = elapsed / current_step
+
+    # Determine the number of steps remaining.
+    steps_left = total_steps - current_step
+
+    # Estimate the remaining time in seconds.
+    remaining_seconds = avg_time_per_step * steps_left
+
+    # Convert remaining seconds into hours, minutes, and seconds.
+    return seconds_to_hms(remaining_seconds)

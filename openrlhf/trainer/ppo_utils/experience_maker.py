@@ -198,7 +198,11 @@ class NaiveExperienceMaker(ABC):
 
         experiences = []
         
-        log_progress = make_progress_logger(len(samples_list), 10, "Making experiences")
+        log_progress = make_progress_logger(
+            len(samples_list),
+            log_every_percent=10,
+            desc="Episode experiences",
+        )
         log_progress(0, force=True)
         for step, samples in enumerate(samples_list, start=1):
             experiences.append(self.make_experience(samples).to_device("cpu"))

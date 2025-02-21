@@ -238,9 +238,10 @@ class PPOTrainer(ABC):
                 ):
                     if i == 0:
                         output = self.tokenizer.batch_decode(
-                            experience.sequences[0].unsqueeze(0), skip_special_tokens=True
+                            experience.sequences[0].unsqueeze(0), skip_special_tokens=False,
                         )[0]
                         self.strategy.print(output)
+                        self.strategy.print("Reward: ", experience.info["reward"][0].item())
                     self.replay_buffer.append(experience)
 
                 self.replay_buffer.normalize("advantages", self.strategy)

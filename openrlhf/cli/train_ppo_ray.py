@@ -304,6 +304,7 @@ if __name__ == "__main__":
     parser.add_argument("--normalize_reward", action="store_true", default=False, help="Enable Reward Normazation")
     parser.add_argument("--top_p", type=float, default=1.0)
     parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--generation_stop", nargs='*', default=[])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--freezing_actor_steps", type=int, default=-1, help="Used for critic initialization")
     parser.add_argument(
@@ -346,6 +347,7 @@ if __name__ == "__main__":
     parser.add_argument("--ref_reward_offload", action="store_true", default=False)
 
     parser.add_argument("--liger_kernel", action="store_true", default=False)
+    parser.add_argument("--torch_compile", action="store_true", default=False)
 
     # Custom dataset
     parser.add_argument("--prompt_data", type=str, default=None, help="HF dataset name or path")

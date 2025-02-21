@@ -52,6 +52,7 @@ class Actor(nn.Module):
         device_map=None,
         packing_samples=False,
         apply_liger_kernel=False,
+        apply_torch_compile=False,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -129,6 +130,9 @@ class Actor(nn.Module):
             if not _LIGER_AVAILABLE:
                 raise ValueError("Liger kernel is not available. Please install it via `pip install liger-kernel`.")
             _apply_liger_kernel_to_instance(self.model)
+        
+        if apply_torch_compile:
+            self.model = torch.compile(self.model)
 
     @torch.no_grad()
     def generate(self, input_ids: torch.Tensor, **kwargs) -> Union[

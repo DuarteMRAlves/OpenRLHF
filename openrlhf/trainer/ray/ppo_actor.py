@@ -292,6 +292,7 @@ class ActorModelRayActor(BasePPORole):
             ds_config=strategy.get_ds_train_config(is_actor=True),
             packing_samples=strategy.args.packing_samples,
             apply_liger_kernel=strategy.args.liger_kernel,
+            apply_torch_compile=strategy.args.torch_compile,
         )
         strategy.print(actor)
 
@@ -481,6 +482,7 @@ class ActorModelRayActor(BasePPORole):
             max_length=args.max_len,
             temperature=args.temperature,
             top_p=args.top_p,
+            stop=args.generation_stop if len(args.generation_stop) > 0 else None,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
             save_hf_ckpt=args.save_hf_ckpt,

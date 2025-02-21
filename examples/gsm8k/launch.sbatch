@@ -19,6 +19,8 @@ run_dir=/mnt/scratch-artemis/duarte/reasoning/runs/test-gsm8k
 ckpt_dir=${run_dir}/checkpoints
 tb_dir=${run_dir}/tensorboard
 
+set -x
+
 ray job submit --address="http://127.0.0.1:8265" \
     -- python3 -u -m openrlhf.cli.train_ppo_ray \
     --ref_num_nodes 1 \
@@ -30,7 +32,7 @@ ray job submit --address="http://127.0.0.1:8265" \
     --vllm_num_engines 1 \
     --vllm_tensor_parallel_size 1 \
     --colocate_actor_ref \
-    --pretrain Qwen/Qwen2.5-1.5B-Instruct \
+    --pretrain Qwen/Qwen2.5-1.5B \
     --save_path ${run_dir} \
     --save_steps 100 \
     --logging_steps 1 \
@@ -47,12 +49,14 @@ ray job submit --address="http://127.0.0.1:8265" \
     --bf16 \
     --actor_learning_rate 5e-7 \
     --critic_learning_rate 9e-6 \
-    --init_kl_coef 0.01 \
-    --prompt_data /mnt/scratch-artemis/duarte/reasoning/gsm8k_dataset \
-    --input_key messages \
-    --apply_chat_template \
+    --init_kl_coef 0.05 \
+    --prompt_data /mnt/scratch-artemis/duarte/reasoning/gsm8k_dataset_base \
+    --input_key prompt \
     --max_samples 100000000 \
     --normalize_reward \
+    --generation_stop '\<\/answer\>' \
+    --temperature 0.9 \
+    --top_p 0.95 \
     --flash_attn \
     --remote_rm_url /mnt/home/duarte/OpenRLHF/examples/gsm8k/reward_function.py \
     --advantage_estimator reinforce_baseline \

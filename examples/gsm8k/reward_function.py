@@ -16,10 +16,11 @@ def _reward_func(query_w_answer, sample):
 
 def _format_reward_func(query_w_completion, sample):
     prompt = sample["prompt"]
-    completion = query_w_completion[len(prompt):]
-    format_regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think>\n<answer>([\s\S]*?)<\/answer><|im_end|>$"
+    prompt_no_think = prompt[:-len("<think> ")].strip()
+    completion = query_w_completion[len(prompt_no_think):].strip()
+    format_regex = r"^<think>.*<\/think>\s*<answer>.*<\/answer>$"
     match = re.match(format_regex, completion, re.DOTALL)
-    if match is None or len(match.groups()) != 2:
+    if match is None:
         return 0.0
     return 1.0
 
@@ -28,8 +29,8 @@ def _answer_reward_func(query_w_completion, sample):
     try:
         prompt = sample["prompt"]
         gold = sample["answer"]
-        
-        completion = query_w_completion[len(prompt):]
+        prompt_no_think = prompt[:-len("<think> ")].strip()
+        completion = query_w_completion[len(prompt_no_think):].strip()
         match = re.search(r"<answer>(.*?)<\/answer>", completion)
         if match is None:
             return 0.0
